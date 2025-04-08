@@ -1,118 +1,116 @@
+import os
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+
 import streamlit as st
+import onnxruntime as ort
 import numpy as np
 import cv2
 from PIL import Image
-from ultralytics import YOLO
-import os
-import asyncio
-import tempfile
+import requests
+from io import BytesIO
 
-# Estilo CSS
+# --- Configuración de la aplicación ---
+st.set_page_config(page_title="🦺 Detector de Seguridad Industrial", page_icon="🦺")
+
 st.markdown("""
     <style>
-    .card {
-        background-color: white;
-        border-radius: 10px;
-        padding: 20px;
-        margin: 10px;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-        text-align: center;
-        width: 90%;
-        max-width: 300px;
-        margin: 10px auto;
-    }
-    .card-title {
-        font-size: 1.2em;
-        color: black;
-    }
-    .card-image {
-        width: 100%;
-        height: auto;
-        object-fit: cover;
-        border-radius: 10px;
-        margin-bottom: 10px;
-    }
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
     </style>
 """, unsafe_allow_html=True)
 
-# Cargar clases desde archivo
+# --- Cargar clases desde archivo ---
 def cargar_clases():
     try:
         with open("clasesSST.txt", "r", encoding="utf-8") as f:
-            return [line.strip() for line in f if line.strip()]
+            return [line.strip() for line in f.readlines()]
     except FileNotFoundError:
         st.error("❌ No se encontró el archivo clasesSST.txt.")
         return []
 
 CLASES = cargar_clases()
-detected_classes = set()
 
-def create_card(title, image_url):
-    return f"""
-    <div class="card">
-        <img class="card-image" src="{image_url}" alt="{title}">
-        <div class="card-title">{title}</div>
-    </div>
-    """
-
-def get_class_html(cls, detected_classes):
-    active = 'background-color:#FF4B4B;color:white;' if cls in detected_classes else 'background-color:white;color:black;'
-    return f'<span style="padding:4px 6px;border-radius:5px;margin:3px;{active} display:inline-block;">{cls}</span>'
-
-# Cargar modelo YOLOv8
+# --- Cargar modelo ONNX ---
 @st.cache_resource
-def load_model():
-    return YOLO("yolov8n.pt")  # Asegúrate de usar un modelo entrenado para SST
+def cargar_modelo_onnx():
+    return ort.InferenceSession("yolov8n.onnx", providers=["CPUExecutionProvider"])
 
-model = load_model()
+session = cargar_modelo_onnx()
+input_name = session.get_inputs()[0].name
 
-# Interfaz principal
-def main():
-    st.title("🦺 Detección de Implementos de Seguridad")
-    actividades = ["Principal", "Subir imagen"]
-    choice = st.sidebar.selectbox("Selecciona una opción", actividades)
-    st.sidebar.markdown("---")
+# --- Preprocesamiento ---
+def preprocesar_imagen(imagen):
+    imagen = imagen.resize((640, 640))
+    img = np.array(imagen).astype(np.float32) / 255.0
+    img = img.transpose(2, 0, 1)  # HWC -> CHW
+    return np.expand_dims(img, axis=0)
 
-    if choice == "Principal":
-        st.markdown("### Aplicación para reconocer implementos de seguridad como casco, chaleco, botas, etc.")
-        st.markdown(f"<div style='padding:6px; border:2px solid #FF4B4B; border-radius:10px;'><h4 style='text-align:center;'>Clases</h4><p style='text-align:center;'>{' '.join([get_class_html(cls, detected_classes) for cls in CLASES])}</p></div>", unsafe_allow_html=True)
+# --- Dibujar resultados y extraer clases ---
+def procesar_detecciones(imagen, detecciones, clases, umbral=0.3):
+    img_np = np.array(imagen).copy()
+    h, w, _ = img_np.shape
+    clases_detectadas = set()
 
-        col1, col2 = st.columns(2)
-        col1.markdown(create_card("📸 Subir Imagen", "https://i.pinimg.com/736x/e1/91/5c/e1915cea845d5e31e1ec113a34b45fd8.jpg"), unsafe_allow_html=True)
-        col2.markdown(create_card("🎥 Subir Video", "https://static.vecteezy.com/system/resources/previews/005/919/290/original/video-play-film-player-movie-solid-icon-illustration-logo-template-suitable-for-many-purposes-free-vector.jpg"), unsafe_allow_html=True)
+    for d in detecciones:
+        if len(d) != 6:
+            continue
+        x, y, ancho, alto, conf, clase_id = d
+        if conf < umbral:
+            continue
 
-    elif choice == "Subir imagen":
-        confianza = st.sidebar.slider('Nivel de confianza', 0.0, 1.0, 0.3, 0.05)
-        image = st.file_uploader("📂 Sube una imagen", type=['jpg', 'jpeg', 'png'])
+        x1 = int((x - ancho / 2) * w)
+        y1 = int((y - alto / 2) * h)
+        x2 = int((x + ancho / 2) * w)
+        y2 = int((y + alto / 2) * h)
+        clase_id = int(clase_id)
+        nombre_clase = clases[clase_id] if clase_id < len(clases) else f"ID {clase_id}"
+        clases_detectadas.add(nombre_clase)
 
-        if image:
-            col1, col2 = st.columns(2)
-            col1.image(image, caption="📷 Imagen original", use_column_width=True)
+        # Dibujar
+        cv2.rectangle(img_np, (x1, y1), (x2, y2), (0, 255, 0), 3)
+        cv2.putText(img_np, f"{nombre_clase} ({conf:.2f})", (x1, y1 - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
 
-            with st.spinner("🔍 Detectando..."):
-                img = Image.open(image).convert("RGB")
-                results = model(img, conf=confianza)
-                result = results[0]
+    return img_np, sorted(clases_detectadas)
 
-                if result:
-                    annotated_img = result.plot()
-                    col2.image(annotated_img, caption="🧠 Detección", use_column_width=True)
+# --- Interfaz de usuario ---
+st.title("🦺 Detector de Implementos de Seguridad")
+st.write("Detecta elementos como casco, chaleco, gafas, botas, etc., según lo entrenado en tu modelo YOLOv8.")
 
-                    for r in result.boxes:
-                        class_id = int(r.cls.cpu().numpy()[0])
-                        conf = float(r.conf.cpu().numpy()[0])
-                        label = CLASES[class_id] if class_id < len(CLASES) else f"ID {class_id}"
-                        detected_classes.add(label)
-                        st.markdown(f"<div style='background:#f0f0f0;padding:5px;margin:5px 0;border-radius:5px;'>🧷 <b>{label}</b> — Confianza: {conf:.2f}</div>", unsafe_allow_html=True)
-                else:
-                    st.warning("No se detectaron objetos en la imagen.")
+confianza = st.slider("🔍 Umbral mínimo de confianza", 0.0, 1.0, 0.3, 0.05)
 
-            # Mostrar clases detectadas
-            st.markdown("<br><h5>Clases detectadas:</h5>", unsafe_allow_html=True)
-            st.markdown(" ".join([get_class_html(cls, detected_classes) for cls in CLASES]), unsafe_allow_html=True)
+# Entrada de imagen
+img_input = st.camera_input("📸 Captura una imagen") or \
+            st.file_uploader("📂 O carga una imagen", type=["jpg", "jpeg", "png"])
 
-if __name__ == "__main__":
-    main()
+if not img_input:
+    url = st.text_input("🌐 O pega el enlace a una imagen")
+    if url:
+        try:
+            response = requests.get(url)
+            img_input = BytesIO(response.content)
+        except:
+            st.error("❌ No se pudo cargar la imagen desde el enlace.")
 
+# Procesamiento
+if img_input:
+    try:
+        imagen = Image.open(img_input).convert("RGB")
+        entrada = preprocesar_imagen(imagen)
+        salida = session.run(None, {input_name: entrada})[0]
 
+        imagen_resultado, etiquetas = procesar_detecciones(imagen, salida[0], CLASES, umbral=confianza)
 
+        st.image(imagen_resultado, caption="🧠 Resultado de detección", use_container_width=True)
+
+        if etiquetas:
+            st.success("🛡️ Objetos detectados:")
+            for clase in etiquetas:
+                st.write(f"✔️ {clase}")
+        else:
+            st.warning("⚠️ No se detectaron objetos con el umbral seleccionado.")
+
+    except Exception as e:
+        st.error(f"❌ Error durante el procesamiento: {e}")
+else:
+    st.info("Sube una imagen, usa la cámara o pega un enlace para comenzar.")
