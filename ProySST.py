@@ -2,20 +2,17 @@ import os
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
 import streamlit as st
-import tensorflow as tf
 import numpy as np
 import cv2
 from PIL import Image
-import warnings
+import onnxruntime as ort
 import requests
 from io import BytesIO
-
+import warnings
 warnings.filterwarnings("ignore")
 
-# Configuración de la página
+# Configurar página
 st.set_page_config(page_title="Verificación de Seguridad", page_icon="🦺")
-
-# Ocultar menú y pie de página
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -26,7 +23,7 @@ st.markdown("""
 # Cargar clases desde archivo
 def cargar_clases():
     try:
-        with open("./clasesSST.txt", "r", encoding="utf-8") as f:
+        with open("clasesSST.txt", "r", encoding="utf-8") as f:
             return [line.strip() for line in f if line.strip()]
     except:
         st.error("❌ No se encontró el archivo clasesSST.txt.")
@@ -34,30 +31,28 @@ def cargar_clases():
 
 CLASES = cargar_clases()
 
-# Cargar modelo TFLite
+# Cargar modelo ONNX
 @st.cache_resource
 def cargar_modelo():
-    interpreter = tf.lite.Interpreter(model_path="yolov8n_float32.tflite")
-    interpreter.allocate_tensors()
-    return interpreter
+    return ort.InferenceSession("yolov8n.onnx", providers=["CPUExecutionProvider"])
 
-interpreter = cargar_modelo()
-input_index = interpreter.get_input_details()[0]['index']
-output_index = interpreter.get_output_details()[0]['index']
+session = cargar_modelo()
 
-# Preprocesar imagen
+# Preprocesamiento
 def preprocesar(imagen):
     imagen = imagen.resize((640, 640))
-    arr = np.array(imagen).astype(np.float32) / 255.0
-    return np.expand_dims(arr, axis=0)
+    img = np.array(imagen).astype(np.float32) / 255.0
+    img = img.transpose(2, 0, 1)  # HWC → CHW
+    img = np.expand_dims(img, axis=0)
+    return img
 
-# Dibujar resultados
-def dibujar_detecciones(imagen, salida, umbral=0.3):
+# Dibujar detecciones
+def dibujar_detecciones(imagen, detecciones, umbral=0.3):
     img_np = np.array(imagen).copy()
     h, w, _ = img_np.shape
     objetos_detectados = []
 
-    for fila in salida:
+    for fila in detecciones:
         if len(fila) != 6:
             continue
         x, y, ancho, alto, conf, clase_id = fila
@@ -68,8 +63,8 @@ def dibujar_detecciones(imagen, salida, umbral=0.3):
         y1 = int((y - alto / 2) * h)
         x2 = int((x + ancho / 2) * w)
         y2 = int((y + alto / 2) * h)
-
         clase_id = int(clase_id)
+
         nombre = CLASES[clase_id] if clase_id < len(CLASES) else f"ID {clase_id}"
         objetos_detectados.append(nombre)
 
@@ -79,13 +74,13 @@ def dibujar_detecciones(imagen, salida, umbral=0.3):
 
     return img_np, objetos_detectados
 
-# Título principal
+# Interfaz principal
 st.title("🦺 Verificación de Implementos de Seguridad")
 st.write("Sube una imagen, toma una foto o pega un enlace para detectar implementos como casco, chaleco, botas, etc.")
 
 confianza = st.slider("Nivel mínimo de confianza", 0.0, 1.0, 0.3, 0.05)
 
-# Entrada por cámara o archivo
+# Entrada de imagen: cámara o archivo
 img_input = st.camera_input("📸 Captura una imagen") or \
             st.file_uploader("... o sube una imagen", type=["jpg", "jpeg", "png"])
 
@@ -103,15 +98,13 @@ if not img_input:
 if img_input:
     try:
         imagen = Image.open(img_input)
-
         entrada = preprocesar(imagen)
-        interpreter.set_tensor(input_index, entrada)
-        interpreter.invoke()
-        salida = interpreter.get_tensor(output_index)[0]
 
-        imagen_con_detecciones, objetos = dibujar_detecciones(imagen, salida, umbral=confianza)
+        input_name = session.get_inputs()[0].name
+        salida = session.run(None, {input_name: entrada})[0]
 
-        st.image(imagen_con_detecciones, caption="🧠 Resultado de detección", use_container_width=True)
+        imagen_detectada, objetos = dibujar_detecciones(imagen, salida[0], umbral=confianza)
+        st.image(imagen_detectada, caption="🧠 Resultado de detección", use_container_width=True)
 
         if objetos:
             st.success("Implementos detectados:")
@@ -122,3 +115,4 @@ if img_input:
         st.error(f"❌ Error al procesar la imagen: {e}")
 else:
     st.info("Sube una imagen, usa la cámara o pega un enlace para comenzar.")
+
