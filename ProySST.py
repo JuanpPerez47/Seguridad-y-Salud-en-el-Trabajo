@@ -106,6 +106,3 @@ if image is not None:
 
     if len(detections) == 0:
         st.info("✅ No se detectaron objetos con suficiente confianza.")
-
-
-
