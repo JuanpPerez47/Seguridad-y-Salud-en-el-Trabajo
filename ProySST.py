@@ -7,10 +7,10 @@ import os
 import requests
 from io import BytesIO
 
-# Estilo de la página
+# Configurar la página
 st.set_page_config(page_title="Verificación de Seguridad SST", page_icon="🦺")
 
-# Cargar clases desde el archivo
+# Cargar clases desde clasesSST.txt
 def cargar_clases():
     try:
         with open("clasesSST.txt", "r", encoding="utf-8") as f:
@@ -40,32 +40,37 @@ def preprocesar(imagen):
     img_array = np.expand_dims(img_array, axis=0)
     return img_array
 
-# Dibujar resultados
-def dibujar_cajas(imagen, cajas, clases, puntuaciones, umbral=0.3):
+# Dibujar detecciones en la imagen
+def dibujar_detecciones(imagen, salida, umbral=0.3):
     imagen = np.array(imagen)
     h, w, _ = imagen.shape
-    for i in range(len(puntuaciones)):
-        if puntuaciones[i] > umbral:
-            y1, x1, y2, x2 = cajas[i]
-            x1, x2 = int(x1 * w), int(x2 * w)
-            y1, y2 = int(y1 * h), int(y2 * h)
-            class_id = int(clases[i])
-            label = CLASES[class_id] if class_id < len(CLASES) else f"ID {class_id}"
+    detectados = []
+
+    for fila in salida:
+        x_center, y_center, ancho, alto, confianza, clase_id = fila
+        if confianza > umbral:
+            x1 = int((x_center - ancho / 2) * w)
+            y1 = int((y_center - alto / 2) * h)
+            x2 = int((x_center + ancho / 2) * w)
+            y2 = int((y_center + alto / 2) * h)
+            class_id = int(clase_id)
+            nombre_clase = CLASES[class_id] if class_id < len(CLASES) else f"ID {class_id}"
+            detectados.append(nombre_clase)
             cv2.rectangle(imagen, (x1, y1), (x2, y2), (0, 255, 0), 2)
-            cv2.putText(imagen, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-    return imagen
+            cv2.putText(imagen, nombre_clase, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+    
+    return imagen, detectados
 
 # Título y descripción
 st.title("🦺 Verificación de Implementos de Seguridad")
 st.write("Esta aplicación detecta si una persona porta elementos de seguridad como casco, chaleco, gafas, etc.")
 
-# Entradas de imagen
+# Entrada de imagen
 st.subheader("📷 Fuente de imagen")
-
 img_input = st.camera_input("Captura una imagen") or \
             st.file_uploader("O carga una imagen desde tu equipo", type=["jpg", "png", "jpeg"])
 
-# Opción de cargar imagen desde URL
+# Entrada por URL
 if not img_input:
     image_url = st.text_input("O pega el enlace a una imagen")
     if image_url:
@@ -75,7 +80,7 @@ if not img_input:
         except:
             st.error("No se pudo cargar la imagen desde el enlace. Verifica la URL.")
 
-# Procesar imagen si hay alguna cargada
+# Procesamiento
 if img_input:
     try:
         imagen = Image.open(img_input)
@@ -85,20 +90,11 @@ if img_input:
         interpreter.set_tensor(input_details[0]['index'], input_data)
         interpreter.invoke()
 
-        # Obtener salidas del modelo
-        try:
-            cajas = interpreter.get_tensor(output_details[0]['index'])[0]
-            clases = interpreter.get_tensor(output_details[1]['index'])[0]
-            puntuaciones = interpreter.get_tensor(output_details[2]['index'])[0]
-        except:
-            st.error("No se pudieron interpretar las salidas del modelo.")
-            st.stop()
+        salida = interpreter.get_tensor(output_details[0]['index'])[0]  # (8400, 6)
+        imagen_salida, detectados = dibujar_detecciones(imagen, salida, umbral=0.3)
 
-        imagen_salida = dibujar_cajas(imagen, cajas, clases, puntuaciones, umbral=0.3)
         st.image(imagen_salida, caption="Resultados de detección", use_container_width=True)
 
-        # Mostrar objetos detectados
-        detectados = [CLASES[int(clases[i])] for i in range(len(puntuaciones)) if puntuaciones[i] > 0.3]
         if detectados:
             st.success("Implementos detectados:")
             st.write(", ".join(set(detectados)))
