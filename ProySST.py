@@ -7,18 +7,12 @@ import numpy as np
 import cv2
 from PIL import Image
 import warnings
-from io import BytesIO
-
 warnings.filterwarnings("ignore")
 
-# Configurar la página
-st.set_page_config(
-    page_title="Verificación de Seguridad Industrial",
-    page_icon="🦺",
-    initial_sidebar_state='expanded'
-)
+# Configuración de la página
+st.set_page_config(page_title="Seguridad en el Trabajo", page_icon="🦺")
 
-# Estilo CSS
+# Ocultar menú y pie de página
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -31,13 +25,13 @@ def cargar_clases():
     try:
         with open("clasesSST.txt", "r", encoding="utf-8") as f:
             return [line.strip() for line in f if line.strip()]
-    except FileNotFoundError:
+    except:
         st.error("❌ No se encontró el archivo clasesSST.txt.")
         return []
 
 CLASES = cargar_clases()
 
-# Cargar modelo TFLite
+# Cargar modelo YOLOv8n TFLite
 @st.cache_resource
 def cargar_modelo():
     interpreter = tf.lite.Interpreter(model_path="yolov8n_float32.tflite")
@@ -48,19 +42,19 @@ interpreter = cargar_modelo()
 input_index = interpreter.get_input_details()[0]['index']
 output_index = interpreter.get_output_details()[0]['index']
 
-# Preprocesar imagen
+# Preprocesar imagen para el modelo
 def preprocesar(imagen):
     imagen = imagen.resize((640, 640))
-    arr = np.array(imagen).astype(np.float32) / 255.0
-    return np.expand_dims(arr, axis=0)
+    img_array = np.array(imagen).astype(np.float32) / 255.0
+    return np.expand_dims(img_array, axis=0)
 
-# Dibujar detecciones
-def dibujar_detecciones(imagen, salida, umbral=0.3):
-    img_array = np.array(imagen)
-    h, w, _ = img_array.shape
-    detectados = []
+# Dibujar cajas y etiquetas
+def dibujar_detecciones(imagen, resultados, umbral=0.3):
+    imagen_np = np.array(imagen)
+    h, w, _ = imagen_np.shape
+    objetos_detectados = []
 
-    for fila in salida:
+    for fila in resultados:
         if len(fila) != 6:
             continue
 
@@ -72,56 +66,49 @@ def dibujar_detecciones(imagen, salida, umbral=0.3):
         y1 = int((y - alto / 2) * h)
         x2 = int((x + ancho / 2) * w)
         y2 = int((y + alto / 2) * h)
+
         clase_id = int(clase_id)
-
         nombre_clase = CLASES[clase_id] if clase_id < len(CLASES) else f"ID {clase_id}"
-        detectados.append(nombre_clase)
+        objetos_detectados.append(nombre_clase)
 
-        cv2.rectangle(img_array, (x1, y1), (x2, y2), (0, 255, 0), 2)
-        cv2.putText(img_array, f"{nombre_clase} {conf:.2f}", (x1, y1 - 10),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        # Dibujo
+        color = (0, 255, 0)  # verde
+        cv2.rectangle(imagen_np, (x1, y1), (x2, y2), color, 3)
+        cv2.putText(imagen_np, f"{nombre_clase} ({conf:.2f})", (x1, y1 - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
 
-    return img_array, detectados
+    return imagen_np, objetos_detectados
 
-# Sidebar
-with st.sidebar:
-    st.title("Detección de Seguridad en el Trabajo")
-    st.subheader("Reconocimiento de implementos de protección personal")
-    confianza = st.slider("Nivel mínimo de confianza", 0.0, 1.0, 0.3, 0.05)
-
-# Encabezado
+# Interfaz Streamlit
 st.title("🦺 Verificación de Implementos de Seguridad")
-st.write("Esta aplicación identifica elementos de seguridad como casco, chaleco, botas, etc., en una imagen de un trabajador.")
-st.markdown("Modelo YOLOv8n optimizado con TensorFlow Lite")
+st.write("Sube una imagen o usa la cámara para detectar casco, chaleco, botas, etc.")
+confianza = st.slider("Nivel mínimo de confianza", 0.0, 1.0, 0.3, 0.05)
 
-# Captura o carga de imagen
-img_input = st.camera_input("📸 Capture una imagen") or \
-            st.file_uploader("... o cargue una imagen desde su equipo", type=["jpg", "jpeg", "png"])
+# Entrada de imagen
+img_input = st.camera_input("📸 Captura una imagen") or \
+            st.file_uploader("... o carga una imagen", type=["jpg", "jpeg", "png"])
 
-# Procesamiento
 if img_input:
     try:
         imagen = Image.open(img_input)
-        st.image(imagen, caption="📷 Imagen cargada", use_container_width=True)
 
+        # Inferencia
         entrada = preprocesar(imagen)
         interpreter.set_tensor(input_index, entrada)
         interpreter.invoke()
         salida = interpreter.get_tensor(output_index)[0]
 
+        # Dibujar resultados
         imagen_detectada, objetos = dibujar_detecciones(imagen, salida, umbral=confianza)
+        st.image(imagen_detectada, caption="🧠 Resultado con detecciones", channels="BGR", use_container_width=True)
 
-        st.image(imagen_detectada, caption="🧠 Resultados de detección", use_container_width=True)
-
+        # Mostrar lista de objetos
         if objetos:
             st.success("Implementos detectados:")
             st.write("✔️ " + ", ".join(set(objetos)))
         else:
-            st.warning("No se detectaron implementos de seguridad con el nivel de confianza seleccionado.")
+            st.warning("No se detectaron implementos con el nivel de confianza seleccionado.")
     except Exception as e:
         st.error(f"❌ Error al procesar la imagen: {e}")
 else:
-    st.info("Por favor, capture o cargue una imagen.")
-
-
-
+    st.info("Por favor, sube o captura una imagen.")
