@@ -11,7 +11,7 @@ with open("clasesSST.txt", "r") as f:
 def load_model(model_path):
     return ort.InferenceSession(model_path)
 
-# Preprocesamiento de imagen para YOLOv8
+# Preprocesamiento de imagen
 def preprocess(image, input_size=640):
     image_resized = cv2.resize(image, (input_size, input_size))
     image_rgb = cv2.cvtColor(image_resized, cv2.COLOR_BGR2RGB)
@@ -19,10 +19,11 @@ def preprocess(image, input_size=640):
     image_input = np.expand_dims(image_input, axis=0)
     return image_input, image_resized
 
-# Post-procesamiento: filtrar resultados y aplicar NMS
+# Postprocesamiento seguro
 def postprocess(outputs, image_shape, conf_thres=0.3, iou_thres=0.45):
     predictions = outputs[0]
     boxes, scores, class_ids = [], [], []
+
     for pred in predictions[0]:
         conf = pred[4]
         if conf > conf_thres:
@@ -38,8 +39,15 @@ def postprocess(outputs, image_shape, conf_thres=0.3, iou_thres=0.45):
                 boxes.append([x1, y1, x2, y2])
                 scores.append(float(score))
                 class_ids.append(int(cls_id))
+
     indices = cv2.dnn.NMSBoxes(boxes, scores, conf_thres, iou_thres)
-    return [(boxes[i[0]], class_ids[i[0]], scores[i[0]]) for i in indices]
+
+    detections = []
+    if len(indices) > 0:
+        for idx in indices:
+            i = idx[0] if isinstance(idx, (list, np.ndarray)) else idx
+            detections.append((boxes[i], class_ids[i], scores[i]))
+    return detections
 
 # Dibujar resultados
 def draw_boxes(image, detections):
@@ -58,7 +66,7 @@ if uploaded_file:
     file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
     img = cv2.imdecode(file_bytes, 1)
 
-    st.image(img, caption="Imagen original", use_column_width=True)
+    st.image(img, caption="Imagen original", use_container_width=True)
 
     model = load_model("yolov8n.onnx")
     input_image, resized_img = preprocess(img)
@@ -67,6 +75,6 @@ if uploaded_file:
     detections = postprocess(outputs, resized_img.shape)
     img_with_boxes = draw_boxes(resized_img.copy(), detections)
 
-    st.image(img_with_boxes, caption="Imagen con detecciones", use_column_width=True)
+    st.image(img_with_boxes, caption="Imagen con detecciones", use_container_width=True)
 
 
