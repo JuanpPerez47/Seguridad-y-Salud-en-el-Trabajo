@@ -2,107 +2,86 @@ import streamlit as st
 import numpy as np
 import cv2
 import onnxruntime as ort
-import urllib.request
 
-# Cargar clases
-CLASSES = ["boots", "gloves", "helmet", "human", "vest"]
-VALID_CLASS_IDS = list(range(len(CLASSES)))  # [0, 1, 2, 3, 4]
+# Cargar clases desde archivo
+with open("clasesSST.txt", "r") as f:
+    CLASSES = [line.strip() for line in f.readlines()]
 
-# Cargar modelo ONNX
+# Cargar modelo
 @st.cache_resource
-def load_model(model_path="yolov8n.onnx"):
-    return ort.InferenceSession(model_path)
+def load_model():
+    return ort.InferenceSession("yolov8n.onnx")
 
 # Preprocesamiento para YOLOv8
-def preprocess(image, input_size=640):
-    image_resized = cv2.resize(image, (input_size, input_size))
-    image_rgb = cv2.cvtColor(image_resized, cv2.COLOR_BGR2RGB)
-    image_input = image_rgb.transpose(2, 0, 1).astype(np.float32) / 255.0
-    image_input = np.expand_dims(image_input, axis=0)
-    return image_input, image_resized
+def preprocess(image, size=640):
+    img_resized = cv2.resize(image, (size, size))
+    img_rgb = cv2.cvtColor(img_resized, cv2.COLOR_BGR2RGB)
+    img_input = img_rgb.transpose(2, 0, 1).astype(np.float32) / 255.0
+    img_input = np.expand_dims(img_input, axis=0)
+    return img_input, img_resized
 
-# Postprocesamiento con NMS
-def postprocess(outputs, image_shape, conf_thres=0.3, iou_thres=0.45):
-    predictions = outputs[0]
+# Postprocesamiento
+def postprocess(preds, shape, conf_thres=0.3, iou_thres=0.5):
+    detections = []
     boxes, scores, class_ids = [], [], []
 
-    for pred in predictions[0]:
-        conf = pred[4]
+    for det in preds[0]:
+        conf = det[4]
         if conf > conf_thres:
-            cls_scores = pred[5:]
+            cls_scores = det[5:]
             cls_id = np.argmax(cls_scores)
             score = cls_scores[cls_id] * conf
             if score > conf_thres:
-                x_center, y_center, w, h = pred[:4]
-                x1 = int((x_center - w / 2) * image_shape[1])
-                y1 = int((y_center - h / 2) * image_shape[0])
-                x2 = int((x_center + w / 2) * image_shape[1])
-                y2 = int((y_center + h / 2) * image_shape[0])
+                x_c, y_c, w, h = det[0:4]
+                x1 = int((x_c - w/2) * shape[1])
+                y1 = int((y_c - h/2) * shape[0])
+                x2 = int((x_c + w/2) * shape[1])
+                y2 = int((y_c + h/2) * shape[0])
                 boxes.append([x1, y1, x2, y2])
                 scores.append(float(score))
                 class_ids.append(int(cls_id))
 
     indices = cv2.dnn.NMSBoxes(boxes, scores, conf_thres, iou_thres)
-    detections = []
-
     if len(indices) > 0:
-        for idx in indices:
-            i = idx[0] if isinstance(idx, (list, np.ndarray)) else idx
-            if class_ids[i] in VALID_CLASS_IDS:
+        for i in indices.flatten():
+            if class_ids[i] < len(CLASSES):
                 detections.append((boxes[i], class_ids[i], scores[i]))
     return detections
 
-# Dibujar cajas en imagen
+# Dibujar cajas
 def draw_boxes(image, detections):
     for box, cls_id, score in detections:
         x1, y1, x2, y2 = box
         label = f"{CLASSES[cls_id]}: {score:.2f}"
         cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
-        cv2.putText(image, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 2)
+        cv2.putText(image, label, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
     return image
 
-# Interfaz Streamlit
-st.title("🦺 Detección de Equipos de Protección Personal (EPP) - YOLOv8")
+# -------------------------
+# Streamlit UI
+# -------------------------
 
-# Elegir origen de imagen
-option = st.radio("Selecciona el origen de la imagen:", ("📁 Subir archivo", "📷 Cámara", "🌐 Desde URL"))
+st.set_page_config(page_title="Detección de EPP con YOLOv8", layout="centered")
 
-image = None
+st.title("🦺 Detección de Equipos de Protección Personal")
+st.write("Este sistema detecta elementos de seguridad como **casco**, **chaleco**, **guantes**, **botas** y **personas**.")
 
-if option == "📁 Subir archivo":
-    uploaded_file = st.file_uploader("Sube una imagen", type=["jpg", "jpeg", "png"])
-    if uploaded_file:
-        file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
-        image = cv2.imdecode(file_bytes, 1)
+uploaded_file = st.file_uploader("📤 Sube una imagen", type=["jpg", "jpeg", "png"])
 
-elif option == "📷 Cámara":
-    camera_image = st.camera_input("Toma una foto")
-    if camera_image:
-        file_bytes = np.asarray(bytearray(camera_image.read()), dtype=np.uint8)
-        image = cv2.imdecode(file_bytes, 1)
+if uploaded_file:
+    file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
+    image = cv2.imdecode(file_bytes, 1)
 
-elif option == "🌐 Desde URL":
-    image_url = st.text_input("Pega la URL de la imagen:")
-    if image_url:
-        try:
-            resp = urllib.request.urlopen(image_url)
-            image_data = np.asarray(bytearray(resp.read()), dtype=np.uint8)
-            image = cv2.imdecode(image_data, 1)
-        except:
-            st.error("❌ No se pudo cargar la imagen desde la URL.")
-
-# Procesar imagen si está disponible
-if image is not None:
     st.image(image, caption="Imagen original", use_container_width=True)
 
     model = load_model()
-    input_image, resized_img = preprocess(image)
-    outputs = model.run(None, {"images": input_image})
+    input_tensor, resized_image = preprocess(image)
+    outputs = model.run(None, {"images": input_tensor})
+    detections = postprocess(outputs, resized_image.shape)
 
-    detections = postprocess(outputs, resized_img.shape)
-    img_with_boxes = draw_boxes(resized_img.copy(), detections)
+    if detections:
+        result_img = draw_boxes(resized_image.copy(), detections)
+        st.image(result_img, caption="🟩 Detecciones", use_container_width=True)
+    else:
+        st.info("No se detectaron objetos.")
 
-    st.image(img_with_boxes, caption="Imagen con detecciones", use_container_width=True)
-
-    if len(detections) == 0:
-        st.info("✅ No se detectaron objetos con suficiente confianza.")
