@@ -62,7 +62,7 @@ img_input = st.camera_input("Captura una imagen") or st.file_uploader("O carga u
 
 if img_input:
     imagen = Image.open(img_input)
-    st.image(imagen, caption="Imagen cargada", use_column_width=True)
+    st.image(imagen, caption="Imagen cargada", use_container_width=True)
 
     input_data = preprocesar(imagen)
     interpreter.set_tensor(input_details[0]['index'], input_data)
@@ -78,7 +78,7 @@ if img_input:
         st.stop()
 
     imagen_salida = dibujar_cajas(imagen, cajas, clases, puntuaciones, umbral=0.3)
-    st.image(imagen_salida, caption="Resultados de detección", use_column_width=True)
+    st.image(imagen_salida, caption="Resultados de detección", use_container_width=True)
 
     # Mostrar objetos detectados
     detectados = [CLASES[int(clases[i])] for i in range(len(puntuaciones)) if puntuaciones[i] > 0.3]
