@@ -7,7 +7,6 @@ import numpy as np
 import cv2
 from PIL import Image
 import warnings
-import requests
 from io import BytesIO
 
 warnings.filterwarnings("ignore")
@@ -49,7 +48,7 @@ interpreter = cargar_modelo()
 input_index = interpreter.get_input_details()[0]['index']
 output_index = interpreter.get_output_details()[0]['index']
 
-# Preprocesamiento de imagen
+# Preprocesar imagen
 def preprocesar(imagen):
     imagen = imagen.resize((640, 640))
     arr = np.array(imagen).astype(np.float32) / 255.0
@@ -86,7 +85,6 @@ def dibujar_detecciones(imagen, salida, umbral=0.3):
 
 # Sidebar
 with st.sidebar:
-    st.image("safety_icon.jpg", use_column_width=True)
     st.title("Detección de Seguridad en el Trabajo")
     st.subheader("Reconocimiento de implementos de protección personal")
     confianza = st.slider("Nivel mínimo de confianza", 0.0, 1.0, 0.3, 0.05)
@@ -94,12 +92,11 @@ with st.sidebar:
 # Encabezado
 st.title("🦺 Verificación de Implementos de Seguridad")
 st.write("Esta aplicación identifica elementos de seguridad como casco, chaleco, botas, etc., en una imagen de un trabajador.")
-st.markdown("#### Modelo YOLOv8n optimizado con TensorFlow Lite")
+st.markdown("Modelo YOLOv8n optimizado con TensorFlow Lite")
 
 # Captura o carga de imagen
-st.header("📸 Capture o cargue una imagen")
-img_input = st.camera_input("Tome una foto") or \
-            st.file_uploader("... o cargue una imagen", type=["jpg", "jpeg", "png"])
+img_input = st.camera_input("📸 Capture una imagen") or \
+            st.file_uploader("... o cargue una imagen desde su equipo", type=["jpg", "jpeg", "png"])
 
 # Procesamiento
 if img_input:
@@ -125,5 +122,6 @@ if img_input:
         st.error(f"❌ Error al procesar la imagen: {e}")
 else:
     st.info("Por favor, capture o cargue una imagen.")
+
 
 
