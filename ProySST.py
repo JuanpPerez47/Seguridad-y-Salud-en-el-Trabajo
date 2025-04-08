@@ -4,6 +4,8 @@ import numpy as np
 import cv2
 from PIL import Image
 import os
+import requests
+from io import BytesIO
 
 # Estilo de la página
 st.set_page_config(page_title="Verificación de Seguridad SST", page_icon="🦺")
@@ -57,33 +59,53 @@ def dibujar_cajas(imagen, cajas, clases, puntuaciones, umbral=0.3):
 st.title("🦺 Verificación de Implementos de Seguridad")
 st.write("Esta aplicación detecta si una persona porta elementos de seguridad como casco, chaleco, gafas, etc.")
 
-# Carga de imagen
-img_input = st.camera_input("Captura una imagen") or st.file_uploader("O carga una imagen", type=["jpg", "png", "jpeg"])
+# Entradas de imagen
+st.subheader("📷 Fuente de imagen")
 
+img_input = st.camera_input("Captura una imagen") or \
+            st.file_uploader("O carga una imagen desde tu equipo", type=["jpg", "png", "jpeg"])
+
+# Opción de cargar imagen desde URL
+if not img_input:
+    image_url = st.text_input("O pega el enlace a una imagen")
+    if image_url:
+        try:
+            response = requests.get(image_url)
+            img_input = BytesIO(response.content)
+        except:
+            st.error("No se pudo cargar la imagen desde el enlace. Verifica la URL.")
+
+# Procesar imagen si hay alguna cargada
 if img_input:
-    imagen = Image.open(img_input)
-    st.image(imagen, caption="Imagen cargada", use_container_width=True)
-
-    input_data = preprocesar(imagen)
-    interpreter.set_tensor(input_details[0]['index'], input_data)
-    interpreter.invoke()
-
-    # Suponiendo salida: [boxes, clases, scores]
     try:
-        cajas = interpreter.get_tensor(output_details[0]['index'])[0]
-        clases = interpreter.get_tensor(output_details[1]['index'])[0]
-        puntuaciones = interpreter.get_tensor(output_details[2]['index'])[0]
-    except:
-        st.error("No se pudieron interpretar las salidas del modelo.")
-        st.stop()
+        imagen = Image.open(img_input)
+        st.image(imagen, caption="Imagen cargada", use_container_width=True)
 
-    imagen_salida = dibujar_cajas(imagen, cajas, clases, puntuaciones, umbral=0.3)
-    st.image(imagen_salida, caption="Resultados de detección", use_container_width=True)
+        input_data = preprocesar(imagen)
+        interpreter.set_tensor(input_details[0]['index'], input_data)
+        interpreter.invoke()
 
-    # Mostrar objetos detectados
-    detectados = [CLASES[int(clases[i])] for i in range(len(puntuaciones)) if puntuaciones[i] > 0.3]
-    if detectados:
-        st.success("Implementos detectados:")
-        st.write(", ".join(set(detectados)))
-    else:
-        st.warning("No se detectaron implementos de seguridad.")
+        # Obtener salidas del modelo
+        try:
+            cajas = interpreter.get_tensor(output_details[0]['index'])[0]
+            clases = interpreter.get_tensor(output_details[1]['index'])[0]
+            puntuaciones = interpreter.get_tensor(output_details[2]['index'])[0]
+        except:
+            st.error("No se pudieron interpretar las salidas del modelo.")
+            st.stop()
+
+        imagen_salida = dibujar_cajas(imagen, cajas, clases, puntuaciones, umbral=0.3)
+        st.image(imagen_salida, caption="Resultados de detección", use_container_width=True)
+
+        # Mostrar objetos detectados
+        detectados = [CLASES[int(clases[i])] for i in range(len(puntuaciones)) if puntuaciones[i] > 0.3]
+        if detectados:
+            st.success("Implementos detectados:")
+            st.write(", ".join(set(detectados)))
+        else:
+            st.warning("No se detectaron implementos de seguridad.")
+    except Exception as e:
+        st.error(f"No se pudo procesar la imagen: {e}")
+else:
+    st.info("Por favor, proporciona una imagen desde la cámara, tu equipo o un enlace.")
+
