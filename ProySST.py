@@ -26,7 +26,7 @@ st.markdown("""
 # Cargar clases desde archivo
 def cargar_clases():
     try:
-        with open("clasesSST.txt", "r", encoding="utf-8") as f:
+        with open("./clasesSST.txt", "r", encoding="utf-8") as f:
             return [line.strip() for line in f if line.strip()]
     except:
         st.error("❌ No se encontró el archivo clasesSST.txt.")
