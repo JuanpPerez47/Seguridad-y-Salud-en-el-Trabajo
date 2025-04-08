@@ -2,16 +2,15 @@ import os
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
 import streamlit as st
-import onnxruntime as ort
 import numpy as np
 import cv2
 from PIL import Image
+import onnxruntime as ort
 import requests
 from io import BytesIO
 
-# --- Configuración de la aplicación ---
-st.set_page_config(page_title="🦺 Detector de Seguridad Industrial", page_icon="🦺")
-
+# Configuración inicial
+st.set_page_config(page_title="Verificación de Seguridad", page_icon="🦺")
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -19,42 +18,42 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- Cargar clases desde archivo ---
+# Cargar clases
 def cargar_clases():
     try:
         with open("clasesSST.txt", "r", encoding="utf-8") as f:
-            return [line.strip() for line in f.readlines()]
-    except FileNotFoundError:
+            return [line.strip() for line in f if line.strip()]
+    except:
         st.error("❌ No se encontró el archivo clasesSST.txt.")
         return []
 
 CLASES = cargar_clases()
 
-# --- Cargar modelo ONNX ---
+# Cargar modelo ONNX
 @st.cache_resource
-def cargar_modelo_onnx():
+def cargar_modelo():
     return ort.InferenceSession("yolov8n.onnx", providers=["CPUExecutionProvider"])
 
-session = cargar_modelo_onnx()
-input_name = session.get_inputs()[0].name
+session = cargar_modelo()
 
-# --- Preprocesamiento ---
-def preprocesar_imagen(imagen):
+# Preprocesamiento
+def preprocesar(imagen):
     imagen = imagen.resize((640, 640))
     img = np.array(imagen).astype(np.float32) / 255.0
-    img = img.transpose(2, 0, 1)  # HWC -> CHW
-    return np.expand_dims(img, axis=0)
+    img = img.transpose(2, 0, 1)  # HWC → CHW
+    img = np.expand_dims(img, axis=0)
+    return img
 
-# --- Dibujar resultados y extraer clases ---
-def procesar_detecciones(imagen, detecciones, clases, umbral=0.3):
+# Dibujar detecciones
+def dibujar_detecciones(imagen, resultados, umbral=0.3):
     img_np = np.array(imagen).copy()
     h, w, _ = img_np.shape
-    clases_detectadas = set()
+    objetos_detectados = []
 
-    for d in detecciones:
-        if len(d) != 6:
+    for fila in resultados:
+        if len(fila) != 6:
             continue
-        x, y, ancho, alto, conf, clase_id = d
+        x, y, ancho, alto, conf, clase_id = fila
         if conf < umbral:
             continue
 
@@ -63,28 +62,29 @@ def procesar_detecciones(imagen, detecciones, clases, umbral=0.3):
         x2 = int((x + ancho / 2) * w)
         y2 = int((y + alto / 2) * h)
         clase_id = int(clase_id)
-        nombre_clase = clases[clase_id] if clase_id < len(clases) else f"ID {clase_id}"
-        clases_detectadas.add(nombre_clase)
 
-        # Dibujar
+        nombre = CLASES[clase_id] if clase_id < len(CLASES) else f"ID {clase_id}"
+        objetos_detectados.append(nombre)
+
         cv2.rectangle(img_np, (x1, y1), (x2, y2), (0, 255, 0), 3)
-        cv2.putText(img_np, f"{nombre_clase} ({conf:.2f})", (x1, y1 - 10),
+        cv2.putText(img_np, f"{nombre} ({conf:.2f})", (x1, y1 - 10),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
 
-    return img_np, sorted(clases_detectadas)
+    return img_np, objetos_detectados
 
-# --- Interfaz de usuario ---
-st.title("🦺 Detector de Implementos de Seguridad")
-st.write("Detecta elementos como casco, chaleco, gafas, botas, etc., según lo entrenado en tu modelo YOLOv8.")
+# Interfaz principal
+st.title("🦺 Verificación de Implementos de Seguridad")
+st.write("Sube una imagen, toma una foto o pega un enlace para detectar implementos como casco, chaleco, botas, etc.")
 
-confianza = st.slider("🔍 Umbral mínimo de confianza", 0.0, 1.0, 0.3, 0.05)
+confianza = st.slider("Nivel mínimo de confianza", 0.0, 1.0, 0.3, 0.05)
 
-# Entrada de imagen
+# Entrada por cámara o archivo
 img_input = st.camera_input("📸 Captura una imagen") or \
-            st.file_uploader("📂 O carga una imagen", type=["jpg", "jpeg", "png"])
+            st.file_uploader("... o sube una imagen", type=["jpg", "jpeg", "png"])
 
+# Entrada por URL
 if not img_input:
-    url = st.text_input("🌐 O pega el enlace a una imagen")
+    url = st.text_input("🌐 O pega el enlace de una imagen")
     if url:
         try:
             response = requests.get(url)
@@ -95,22 +95,21 @@ if not img_input:
 # Procesamiento
 if img_input:
     try:
-        imagen = Image.open(img_input).convert("RGB")
-        entrada = preprocesar_imagen(imagen)
-        salida = session.run(None, {input_name: entrada})[0]
+        imagen = Image.open(img_input)
+        entrada = preprocesar(imagen)
 
-        imagen_resultado, etiquetas = procesar_detecciones(imagen, salida[0], CLASES, umbral=confianza)
+        input_name = session.get_inputs()[0].name
+        output = session.run(None, {input_name: entrada})[0]
 
-        st.image(imagen_resultado, caption="🧠 Resultado de detección", use_container_width=True)
+        imagen_con_detecciones, objetos = dibujar_detecciones(imagen, output[0], umbral=confianza)
+        st.image(imagen_con_detecciones, caption="🧠 Resultado de detección", use_container_width=True)
 
-        if etiquetas:
-            st.success("🛡️ Objetos detectados:")
-            for clase in etiquetas:
-                st.write(f"✔️ {clase}")
+        if objetos:
+            st.success("Implementos detectados:")
+            st.write("✔️ " + ", ".join(set(objetos)))
         else:
-            st.warning("⚠️ No se detectaron objetos con el umbral seleccionado.")
-
+            st.warning("No se detectaron implementos con el nivel de confianza seleccionado.")
     except Exception as e:
-        st.error(f"❌ Error durante el procesamiento: {e}")
+        st.error(f"❌ Error al procesar la imagen: {e}")
 else:
     st.info("Sube una imagen, usa la cámara o pega un enlace para comenzar.")
