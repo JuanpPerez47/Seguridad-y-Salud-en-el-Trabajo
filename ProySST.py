@@ -59,24 +59,18 @@ def dibujar_cajas(imagen, cajas, clases, puntuaciones, umbral=0.3):
 st.title("🦺 Verificación de Implementos de Seguridad")
 st.write("Esta aplicación detecta si una persona porta elementos de seguridad como casco, chaleco, gafas, etc.")
 
-# Opciones de entrada
-st.subheader("📷 Opciones de entrada de imagen")
-opcion = st.radio("Selecciona una fuente de imagen:", ("Cámara", "Archivo", "Enlace (URL)"))
-
+# Entrada de imagen
+st.subheader("Entrada de imagen")
+col1, col2 = st.columns(2)
 imagen = None
 
-if opcion == "Cámara":
-    img_input = st.camera_input("Captura una imagen")
-    if img_input:
-        imagen = Image.open(img_input)
+with col1:
+    img_file = st.file_uploader("Desde archivo", type=["jpg", "png", "jpeg"])
+    if img_file:
+        imagen = Image.open(img_file)
 
-elif opcion == "Archivo":
-    img_input = st.file_uploader("Carga una imagen", type=["jpg", "png", "jpeg"])
-    if img_input:
-        imagen = Image.open(img_input)
-
-elif opcion == "Enlace (URL)":
-    url = st.text_input("Pega el enlace de la imagen:")
+with col2:
+    url = st.text_input("Desde enlace (URL)")
     if url:
         try:
             response = requests.get(url)
@@ -84,7 +78,13 @@ elif opcion == "Enlace (URL)":
         except:
             st.error("No se pudo cargar la imagen desde el enlace.")
 
-# Procesamiento y detección
+# Alternativa: cámara
+if not imagen:
+    cam_img = st.camera_input("O usa la cámara")
+    if cam_img:
+        imagen = Image.open(cam_img)
+
+# Procesamiento y salida
 if imagen:
     st.image(imagen, caption="Imagen cargada", use_container_width=True)
 
