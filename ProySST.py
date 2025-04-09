@@ -4,6 +4,8 @@ import numpy as np
 import cv2
 from PIL import Image
 import os
+import requests
+from io import BytesIO
 
 # Estilo de la página
 st.set_page_config(page_title="Verificación de Seguridad SST", page_icon="🦺")
@@ -57,18 +59,39 @@ def dibujar_cajas(imagen, cajas, clases, puntuaciones, umbral=0.3):
 st.title("🦺 Verificación de Implementos de Seguridad")
 st.write("Esta aplicación detecta si una persona porta elementos de seguridad como casco, chaleco, gafas, etc.")
 
-# Carga de imagen
-img_input = st.camera_input("Captura una imagen") or st.file_uploader("O carga una imagen", type=["jpg", "png", "jpeg"])
+# Opciones de entrada
+st.subheader("📷 Opciones de entrada de imagen")
+opcion = st.radio("Selecciona una fuente de imagen:", ("Cámara", "Archivo", "Enlace (URL)"))
 
-if img_input:
-    imagen = Image.open(img_input)
+imagen = None
+
+if opcion == "Cámara":
+    img_input = st.camera_input("Captura una imagen")
+    if img_input:
+        imagen = Image.open(img_input)
+
+elif opcion == "Archivo":
+    img_input = st.file_uploader("Carga una imagen", type=["jpg", "png", "jpeg"])
+    if img_input:
+        imagen = Image.open(img_input)
+
+elif opcion == "Enlace (URL)":
+    url = st.text_input("Pega el enlace de la imagen:")
+    if url:
+        try:
+            response = requests.get(url)
+            imagen = Image.open(BytesIO(response.content))
+        except:
+            st.error("No se pudo cargar la imagen desde el enlace.")
+
+# Procesamiento y detección
+if imagen:
     st.image(imagen, caption="Imagen cargada", use_container_width=True)
 
     input_data = preprocesar(imagen)
     interpreter.set_tensor(input_details[0]['index'], input_data)
     interpreter.invoke()
 
-    # Suponiendo salida: [boxes, clases, scores]
     try:
         cajas = interpreter.get_tensor(output_details[0]['index'])[0]
         clases = interpreter.get_tensor(output_details[1]['index'])[0]
@@ -80,7 +103,6 @@ if img_input:
     imagen_salida = dibujar_cajas(imagen, cajas, clases, puntuaciones, umbral=0.3)
     st.image(imagen_salida, caption="Resultados de detección", use_container_width=True)
 
-    # Mostrar objetos detectados
     detectados = [CLASES[int(clases[i])] for i in range(len(puntuaciones)) if puntuaciones[i] > 0.3]
     if detectados:
         st.success("Implementos detectados:")
