@@ -4,8 +4,6 @@ import numpy as np
 import cv2
 from PIL import Image
 import os
-import requests
-from io import BytesIO
 
 # Estilo de la página
 st.set_page_config(page_title="Verificación de Seguridad SST", page_icon="🦺")
@@ -59,39 +57,18 @@ def dibujar_cajas(imagen, cajas, clases, puntuaciones, umbral=0.3):
 st.title("🦺 Verificación de Implementos de Seguridad")
 st.write("Esta aplicación detecta si una persona porta elementos de seguridad como casco, chaleco, gafas, etc.")
 
-# Entrada de imagen
-st.subheader("Entrada de imagen")
-col1, col2 = st.columns(2)
-imagen = None
+# Carga de imagen
+img_input = st.camera_input("Captura una imagen") or st.file_uploader("O carga una imagen", type=["jpg", "png", "jpeg"])
 
-with col1:
-    img_file = st.file_uploader("Desde archivo", type=["jpg", "png", "jpeg"])
-    if img_file:
-        imagen = Image.open(img_file)
-
-with col2:
-    url = st.text_input("Desde enlace (URL)")
-    if url:
-        try:
-            response = requests.get(url)
-            imagen = Image.open(BytesIO(response.content))
-        except:
-            st.error("No se pudo cargar la imagen desde el enlace.")
-
-# Alternativa: cámara
-if not imagen:
-    cam_img = st.camera_input("O usa la cámara")
-    if cam_img:
-        imagen = Image.open(cam_img)
-
-# Procesamiento y salida
-if imagen:
+if img_input:
+    imagen = Image.open(img_input)
     st.image(imagen, caption="Imagen cargada", use_container_width=True)
 
     input_data = preprocesar(imagen)
     interpreter.set_tensor(input_details[0]['index'], input_data)
     interpreter.invoke()
 
+    # Suponiendo salida: [boxes, clases, scores]
     try:
         cajas = interpreter.get_tensor(output_details[0]['index'])[0]
         clases = interpreter.get_tensor(output_details[1]['index'])[0]
@@ -103,6 +80,7 @@ if imagen:
     imagen_salida = dibujar_cajas(imagen, cajas, clases, puntuaciones, umbral=0.3)
     st.image(imagen_salida, caption="Resultados de detección", use_container_width=True)
 
+    # Mostrar objetos detectados
     detectados = [CLASES[int(clases[i])] for i in range(len(puntuaciones)) if puntuaciones[i] > 0.3]
     if detectados:
         st.success("Implementos detectados:")
