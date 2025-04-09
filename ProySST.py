@@ -58,7 +58,8 @@ st.title("🦺 Verificación de Implementos de Seguridad")
 st.write("Esta aplicación detecta si una persona porta elementos de seguridad como casco, chaleco, gafas, etc.")
 
 # Carga de imagen
-img_input = st.camera_input("Captura una imagen") or st.file_uploader("O carga una imagen", type=["jpg", "png", "jpeg"])
+
+img_input = st.camera_input("Captura una imagen") or st.file_uploader("O carga una imagen", type=["jpg", "png", "jpeg"]) or (lambda url: BytesIO(requests.get(url).content) if url else None)(st.text_input("O ingresa una URL de imagen"))
 
 if img_input:
     imagen = Image.open(img_input)
