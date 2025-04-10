@@ -87,7 +87,7 @@ def draw_detections(image, boxes, class_ids, scores):
 
 # Interfaz Streamlit
 st.title("🦺 Detección de Seguridad con YOLOv8 (ONNX)")
-uploaded_file = st.file_uploader("📁 Sube una imagen", type=["jpg", "jpeg", "png"]) or st.camera_input("📷 O toma una foto")
+uploaded_file = st.file_uploader("📁 Sube una imagen", type=["jpg", "jpeg", "png"]) or st.camera_input("📷 O toma una foto") or (lambda url: Image.open(BytesIO(requests.get(url).content)) if url else None)( st.text_input("🌐 O pega el enlace de una imagen"))
 
 if uploaded_file is not None:
     image = Image.open(uploaded_file).convert("RGB")
