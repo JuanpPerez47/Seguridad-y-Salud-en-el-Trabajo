@@ -87,7 +87,7 @@ with st.sidebar:
     confianza = st.slider("🔍 Nivel de confianza", 0, 100, 50) / 100
 
 # Imagen decorativa
-st.image("smartregionlab2.jpeg", use_column_width=True)
+st.image("imagen12.jpg", use_column_width=True)
 st.title("🦺 Detección de Seguridad con YOLOv8 (ONNX)")
 
 # Entrada de imagen
