@@ -5,14 +5,15 @@ from PIL import Image, ImageDraw, ImageFont
 import requests
 from io import BytesIO
 
-class_names = []
+# Leer nombres de clases desde clasesSST.txt
+CLASES = []
 try:
-    with open("claseIA.txt", "r", encoding="utf-8") as f:
-        class_names = [line.strip().lower() for line in f.readlines()]  # Lee y almacena los nombres de las clases en minúsculas
-    if not class_names:
-        st.error("El archivo claseIA.txt está vacío.")  # Muestra un error si el archivo está vacío
+    with open("clasesSST.txt", "r", encoding="utf-8") as f:
+        CLASES = [line.strip() for line in f.readlines()]
+    if not CLASES:
+        st.error("❌ El archivo clasesSST.txt está vacío.")
 except FileNotFoundError:
-    st.error("No se encontró el archivo claseIA.txt.")  # Muestra un error si el archivo no se encuentra
+    st.error("❌ No se encontró el archivo clasesSST.txt.")
 
 # Cargar modelo ONNX
 onnx_model_path = "yolov8n.onnx"
@@ -21,12 +22,12 @@ input_name = session.get_inputs()[0].name
 input_shape = session.get_inputs()[0].shape  # [1, 3, h, w]
 input_height, input_width = input_shape[2], input_shape[3]
 
-# Preprocesar imagen
+# Preprocesamiento
 def preprocess_image(image):
     image_resized = image.resize((input_width, input_height))
     image_array = np.array(image_resized).astype(np.float32) / 255.0
     image_array = np.transpose(image_array, (2, 0, 1))  # HWC -> CHW
-    image_array = np.expand_dims(image_array, axis=0)  # [1, 3, h, w]
+    image_array = np.expand_dims(image_array, axis=0)
     return image_array
 
 # Postprocesamiento
@@ -40,7 +41,6 @@ def postprocess_output(output, orig_image, conf_threshold=0.3):
         if confidence > conf_threshold:
             x_center, y_center, width, height = det[0], det[1], det[2], det[3]
             class_id = int(det[5])
-
             left = int((x_center - width / 2) * image_width)
             top = int((y_center - height / 2) * image_height)
             right = int((x_center + width / 2) * image_width)
@@ -52,7 +52,7 @@ def postprocess_output(output, orig_image, conf_threshold=0.3):
 
     return boxes, class_ids, scores
 
-# Obtener nombre seguro de clase
+# Obtener nombre seguro
 def get_class_name(class_id):
     if 0 <= class_id < len(CLASES):
         return CLASES[class_id]
@@ -63,54 +63,45 @@ def get_class_name(class_id):
 def draw_detections(image, boxes, class_ids, scores):
     draw = ImageDraw.Draw(image)
     font = ImageFont.load_default()
-
     for box, cls_id, score in zip(boxes, class_ids, scores):
         label = get_class_name(cls_id)
         label_text = f"{label} ({score:.2f})"
-
         text_bbox = draw.textbbox((0, 0), label_text, font=font)
         text_width = text_bbox[2] - text_bbox[0]
         text_height = text_bbox[3] - text_bbox[1]
-
         draw.rectangle(box, outline="red", width=3)
         draw.rectangle(
             [box[0], box[1] - text_height - 4, box[0] + text_width + 4, box[1]],
             fill="red"
         )
         draw.text((box[0] + 2, box[1] - text_height - 2), label_text, fill="white", font=font)
-
     return image
 
-# Interfaz Streamlit
+# Interfaz
 st.title("🦺 Detección de Seguridad con YOLOv8 (ONNX)")
 
-# Entrada desde archivo, cámara o URL
 entrada = (
     st.file_uploader("📁 Sube una imagen", type=["jpg", "jpeg", "png"])
     or st.camera_input("📷 O toma una foto")
     or st.text_input("🌐 O ingresa la URL de una imagen")
 )
 
-# Procesamiento y detección
 image = None
 if entrada:
     try:
-        if isinstance(entrada, str):  # URL
+        if isinstance(entrada, str):
             response = requests.get(entrada)
             image = Image.open(BytesIO(response.content)).convert("RGB")
-        else:  # Archivo o cámara
+        else:
             image = Image.open(entrada).convert("RGB")
 
         st.image(image, caption="📷 Imagen Original", use_container_width=True)
 
-        # Inferencia
         input_tensor = preprocess_image(image)
         output = session.run(None, {input_name: input_tensor})
         boxes, class_ids, scores = postprocess_output(output, image.copy())
 
-        # Mostrar resultados
-        image_with_boxes = image.copy()
-        image_with_boxes = draw_detections(image_with_boxes, boxes, class_ids, scores)
+        image_with_boxes = draw_detections(image.copy(), boxes, class_ids, scores)
         st.image(image_with_boxes, caption="🟥 Imagen con Detecciones", use_container_width=True)
 
         st.markdown("### ✅ Objetos detectados:")
@@ -122,3 +113,4 @@ if entrada:
 
     except Exception as e:
         st.error(f"❌ Error al procesar la imagen: {e}")
+
