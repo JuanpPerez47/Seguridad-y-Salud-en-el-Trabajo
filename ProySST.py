@@ -128,4 +128,5 @@ if procesar and imagen_original:
                 st.error(f"🚨 No cumple con el PPE. Faltan: {', '.join(faltantes)}")
 
     st.markdown("---")
-    st.markdown("<center><sub>📌 Autor: Alfredo Díaz - UNAB 2025 ©️</sub></center>", unsafe_allow_html=True)
+    st.markdown("<center><sub>📌 Autor: Juan PablO Pérez Bayona - UNAB 2025 ©️</sub></center>", unsafe_allow_html=True)
+
