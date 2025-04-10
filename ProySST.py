@@ -19,7 +19,7 @@ st.markdown("<style>h1, h2, h3 { color: #003366; } .stButton>button { background
 # Encabezado
 col1, col2 = st.columns([0.15, 0.85])
 with col1:
-    st.image("logo.jpg", width=90)
+    st.image("imagen12.jpg", width=90)
 with col2:
     st.title("🛡️ Sistema Inteligente de uso de Equipos de Protección Personal (PPE)")
 
