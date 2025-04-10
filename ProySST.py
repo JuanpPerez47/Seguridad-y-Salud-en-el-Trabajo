@@ -24,14 +24,16 @@ st.markdown(
 # Barra lateral con controles
 st.sidebar.markdown("## Configuración")
 confianza = st.sidebar.slider("Nivel de confianza", 0, 100, 50)
-procesar = st.sidebar.button("📤 Procesar imagen")
 
-# Entradas en el cuerpo principal
+# Entradas de imagen en el cuerpo principal
 st.markdown("## Selecciona una imagen para analizar:")
 
-# Captura una imagen desde la cámara o permite la carga de un archivo
-img_file_buffer = st.camera_input("Capture una foto para identificar el objeto") or \
-                  st.file_uploader("Cargar imagen desde archivo", type=["jpg", "jpeg", "png"])
+archivo = st.file_uploader("📁 Subir desde archivo", type=["jpg", "jpeg", "png"])
+captura = st.camera_input("📷 Capturar desde cámara")
+url = st.text_input("🌐 Ingresar URL de imagen")
+
+# Botón de procesamiento
+procesar = st.button("📤 Procesar imagen")
 
 # Procesar entrada
 imagen_original = None
@@ -94,8 +96,3 @@ if imagen_original:
 # Pie de página
 st.markdown("---")
 st.markdown("<center><sub>📌 Autor: Juan Pablo Pérez Bayona - UNAB 2025 ©️</sub></center>", unsafe_allow_html=True)
-
-
-
-
-
