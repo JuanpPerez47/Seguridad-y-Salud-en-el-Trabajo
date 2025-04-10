@@ -26,8 +26,6 @@ st.sidebar.markdown("## Configuración")
 confianza = st.sidebar.slider("Nivel de confianza", 0, 100, 50)
 
 # Entradas de imagen en el cuerpo principal
-st.markdown("## Selecciona una imagen para analizar:")
-
 archivo = st.file_uploader("📁 Subir desde archivo", type=["jpg", "jpeg", "png"])
 captura = st.camera_input("📷 Capturar desde cámara")
 url = st.text_input("🌐 Ingresar URL de imagen")
