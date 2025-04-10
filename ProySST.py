@@ -7,7 +7,7 @@ import requests
 from io import BytesIO
 from ultralytics import YOLO
 
-# Modelos
+# Cargar modelos
 modelo_personas = YOLO("yolov8n.pt")
 modelo_ppe = YOLO("best.pt")
 
@@ -21,28 +21,33 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Barra lateral
-st.sidebar.markdown("## Opciones de Entrada")
-
-# Confianza del modelo
+# Barra lateral con controles
+st.sidebar.markdown("## Configuración")
 confianza = st.sidebar.slider("Nivel de confianza", 0, 100, 50)
-
-# Entrada: Subir imagen
-st.sidebar.markdown("### 1. Subir imagen desde archivo")
-archivo = st.sidebar.file_uploader("Selecciona una imagen", type=["jpg", "jpeg", "png"])
-
-# Entrada: Cámara
-st.sidebar.markdown("### 2. Capturar desde cámara")
-captura = st.sidebar.camera_input("")
-
-# Entrada: Enlace URL
-st.sidebar.markdown("### 3. Usar URL de imagen")
-url = st.sidebar.text_input("Pega el enlace aquí")
-
-# Procesar imagen
-imagen_original = None
 procesar = st.sidebar.button("📤 Procesar imagen")
 
+# Entradas en el cuerpo principal
+st.markdown("## Selecciona una imagen para analizar:")
+
+col1, col2, col3 = st.columns(3)
+
+# Subir imagen
+with col1:
+    st.markdown("### 📁 Subir desde archivo")
+    archivo = st.file_uploader("Selecciona una imagen", type=["jpg", "jpeg", "png"])
+
+# Cámara
+with col2:
+    st.markdown("### 📷 Capturar desde cámara")
+    captura = st.camera_input("")
+
+# URL
+with col3:
+    st.markdown("### 🌐 Desde URL")
+    url = st.text_input("Pega el enlace aquí")
+
+# Procesar entrada
+imagen_original = None
 if procesar:
     if archivo:
         imagen_original = Image.open(archivo)
@@ -53,11 +58,11 @@ if procesar:
             response = requests.get(url)
             imagen_original = Image.open(BytesIO(response.content))
         except:
-            st.sidebar.error("❌ No se pudo cargar la imagen desde el enlace.")
+            st.error("❌ No se pudo cargar la imagen desde el enlace.")
     else:
-        st.sidebar.warning("Por favor, selecciona una imagen primero.")
+        st.warning("⚠️ Por favor, selecciona una imagen antes de procesar.")
 
-# Procesamiento
+# Procesamiento de la imagen
 if imagen_original:
     st.subheader("📸 Imagen analizada")
     st.image(imagen_original, use_container_width=True)
@@ -102,6 +107,7 @@ if imagen_original:
 # Pie de página
 st.markdown("---")
 st.markdown("<center><sub>📌 Autor: Juan Pablo Pérez Bayona - UNAB 2025 ©️</sub></center>", unsafe_allow_html=True)
+
 
 
 
