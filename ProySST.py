@@ -1,130 +1,118 @@
 import streamlit as st
+from PIL import Image
+import cv2
 import numpy as np
-import onnxruntime as ort
-from PIL import Image, ImageDraw, ImageFont
-import requests
-from io import BytesIO
+import os
+from ultralytics import YOLO
+import tempfile
 
-# ------------------------ Leer nombres de clases ------------------------ #
-CLASES = []
-try:
-    with open("clasesSST.txt", "r", encoding="utf-8") as f:
-        CLASES = [line.strip() for line in f if line.strip()]
-    if not CLASES:
-        st.error("❌ El archivo clasesSST.txt está vacío.")
-except FileNotFoundError:
-    st.error("❌ No se encontró el archivo clasesSST.txt.")
+# Cargar modelos
+modelo_personas = YOLO("yolov8n.pt")     # Detección de personas
+modelo_ppe = YOLO("best.pt")             # Detección de PPE
 
-# ------------------------ Cargar modelo ONNX ------------------------ #
-onnx_model_path = "yolov8n.onnx"
-session = ort.InferenceSession(onnx_model_path, providers=["CPUExecutionProvider"])
-input_name = session.get_inputs()[0].name
-input_shape = session.get_inputs()[0].shape
-input_height, input_width = input_shape[2], input_shape[3]
+# Configuración de la página
+st.set_page_config(page_title="Sistema Inteligente de uso de PPE", layout="wide")
 
-# ------------------------ Preprocesamiento ------------------------ #
-def preprocess_image(image):
-    image_resized = image.resize((input_width, input_height))
-    image_array = np.array(image_resized).astype(np.float32) / 255.0
-    image_array = np.transpose(image_array, (2, 0, 1))
-    image_array = np.expand_dims(image_array, axis=0)
-    return image_array
+# Encabezado con logo y título
+col1, col2 = st.columns([0.1, 0.9])
+with col1:
+    st.image("logo.jpg", width=80)
+with col2:
+    st.title("Sistema Inteligente de uso de PPE")
 
-# ------------------------ Postprocesamiento ------------------------ #
-def postprocess_output(output, orig_image, conf_threshold=0.3):
-    image_width, image_height = orig_image.size
-    detections = output[0][0]
-    boxes, class_ids, scores = [], [], []
+# Introducción
+st.markdown("""
+Bienvenido al **Sistema Inteligente de uso de Equipos de Protección Personal (PPE)**.  
+Esta herramienta utiliza visión por computadora para verificar si las personas están utilizando el equipo de protección necesario (casco, chaleco y botas) antes de ingresar a una fábrica.
 
-    for det in detections:
-        confidence = det[4]
-        if confidence > conf_threshold:
-            x_center, y_center, width, height = det[0], det[1], det[2], det[3]
-            class_id = int(det[5])
-            left = int((x_center - width / 2) * image_width)
-            top = int((y_center - height / 2) * image_height)
-            right = int((x_center + width / 2) * image_width)
-            bottom = int((y_center + height / 2) * image_height)
+---  
+""")
 
-            boxes.append((left, top, right, bottom))
-            class_ids.append(class_id)
-            scores.append(confidence)
+# Instrucciones
+st.subheader("📌 Instrucciones de uso")
+st.markdown("""
+1. Elige una opción: cargar una imagen o tomar una foto.  
+2. Presiona el botón **Enviar Foto**.  
+3. El sistema detectará personas y evaluará el uso correcto del equipo de protección personal (PPE).  
+""")
 
-    return boxes, class_ids, scores
+# Tabs para seleccionar entre carga y cámara
+tab1, tab2 = st.tabs(["📁 Subir Imagen", "📷 Tomar Foto"])
 
-# ------------------------ Obtener nombre de clase ------------------------ #
-def get_class_name(class_id):
-    if 0 <= class_id < len(CLASES):
-        return CLASES[class_id]
-    else:
-        return f"Clase desconocida (id {class_id})"
+# Variables para imagen y bandera de envío
+imagen_original = None
+procesar = False
 
-# ------------------------ Dibujar detecciones ------------------------ #
-def draw_detections(image, boxes, class_ids, scores):
-    draw = ImageDraw.Draw(image)
-    font = ImageFont.load_default()
-    for box, cls_id, score in zip(boxes, class_ids, scores):
-        label = get_class_name(cls_id)
-        label_text = f"{label} ({score:.2f})"
-        text_bbox = draw.textbbox((0, 0), label_text, font=font)
-        text_width = text_bbox[2] - text_bbox[0]
-        text_height = text_bbox[3] - text_bbox[1]
-        draw.rectangle(box, outline="red", width=3)
-        draw.rectangle(
-            [box[0], box[1] - text_height - 4, box[0] + text_width + 4, box[1]],
-            fill="red"
-        )
-        draw.text((box[0] + 2, box[1] - text_height - 2), label_text, fill="white", font=font)
-    return image
-
-# ------------------------ Interfaz principal ------------------------ #
-
-# Barra lateral
-with st.sidebar:
-    st.video("https://www.youtube.com/watch?v=xxUHCtHnVk8")
-    st.title("Detección de Imagen")
-    st.subheader("Detección con YOLOv8")
-    confianza = st.slider("🔍 Nivel de confianza", 0, 100, 50) / 100
-
-# Imagen decorativa
-st.image("imagen12.jpg", use_container_width=True)
-
-# Título centrado
-st.markdown("<h1 style='text-align: center;'>🦺 Detección de Seguridad con YOLOv8 (ONNX)</h1>",unsafe_allow_html=True)
-
-# Entrada de imagen
-entrada = (
-    st.file_uploader("📁 Sube una imagen", type=["jpg", "jpeg", "png"])
-    or st.camera_input("📷 O toma una foto")
-    or st.text_input("🌐 O ingresa la URL de una imagen")
-)
-
-# Procesamiento
-image = None
-if entrada:
-    try:
-        if isinstance(entrada, str):  # URL
-            response = requests.get(entrada)
-            image = Image.open(BytesIO(response.content)).convert("RGB")
+with tab1:
+    foto = st.file_uploader("Sube una imagen", type=["jpg", "png", "jpeg"])
+    if st.button("📤 Enviar Foto", key="upload"):
+        if foto:
+            imagen_original = Image.open(foto)
+            procesar = True
         else:
-            image = Image.open(entrada).convert("RGB")
+            st.warning("Por favor, sube una imagen antes de enviar.")
 
-        st.image(image, caption="📷 Imagen Original", use_container_width=True)
-
-        input_tensor = preprocess_image(image)
-        output = session.run(None, {input_name: input_tensor})
-        boxes, class_ids, scores = postprocess_output(output, image.copy(), conf_threshold=confianza)
-
-        image_with_boxes = draw_detections(image.copy(), boxes, class_ids, scores)
-        st.image(image_with_boxes, caption="🟥 Imagen con Detecciones", use_container_width=True)
-
-        st.markdown("### ✅ Objetos detectados:")
-        if boxes:
-            for cls_id in set(class_ids):
-                st.write(f"- {get_class_name(cls_id)}")
+with tab2:
+    captura = st.camera_input("Captura una foto")
+    if st.button("📤 Enviar Foto", key="camera"):
+        if captura:
+            imagen_original = Image.open(captura)
+            procesar = True
         else:
-            st.warning("⚠️ No se detectaron elementos con suficiente confianza.")
+            st.warning("Por favor, toma una foto antes de enviar.")
 
-    except Exception as e:
-        st.error(f"❌ Error al procesar la imagen: {e}")
+# Procesamiento si hay imagen
+if procesar and imagen_original:
+    st.subheader("🔍 Imagen cargada")
+    st.image(imagen_original, use_container_width=True)
+
+    # Convertir imagen a formato OpenCV
+    img_cv = np.array(imagen_original)
+    img_cv = cv2.cvtColor(img_cv, cv2.COLOR_RGB2BGR)
+
+    # Detección de personas
+    resultados_personas = modelo_personas(img_cv)[0]
+    personas_detectadas = [r for r in resultados_personas.boxes.data.cpu().numpy() if int(r[5]) == 0]
+
+    st.subheader(f"👥 Personas detectadas: {len(personas_detectadas)}")
+
+    # Evaluar cada persona
+    for i, persona in enumerate(personas_detectadas, start=1):
+        x1, y1, x2, y2, conf, clase = map(int, persona[:6])
+        persona_img = img_cv[y1:y2, x1:x2]
+
+        # Guardar temporalmente
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as temp_file:
+            cv2.imwrite(temp_file.name, persona_img)
+
+            # Aplicar modelo PPE
+            resultados_ppe = modelo_ppe(temp_file.name)[0]
+            etiquetas_detectadas = [modelo_ppe.names[int(d.cls)] for d in resultados_ppe.boxes]
+
+            # Dibujar bounding boxes
+            for box in resultados_ppe.boxes:
+                x1o, y1o, x2o, y2o = map(int, box.xyxy[0])
+                label = modelo_ppe.names[int(box.cls[0])]
+                conf = float(box.conf[0])
+                cv2.rectangle(persona_img, (x1o, y1o), (x2o, y2o), (0, 255, 0), 2)
+                cv2.putText(persona_img, f"{label} {conf:.2f}", (x1o, y1o - 10),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+
+            # Mostrar imagen con objetos detectados
+            st.markdown(f"### 👤 Persona {i}")
+            st.image(persona_img, caption="Objetos detectados en la persona", channels="BGR", width=300)
+            st.markdown("**Objetos detectados:** " + ", ".join(etiquetas_detectadas))
+
+            # Verificación de cumplimiento
+            requeridos = {"casco", "chaleco", "botas"}
+            presentes = set(etiquetas_detectadas)
+
+            if requeridos.issubset(presentes):
+                st.success("✅ Cumple con los requisitos para el ingreso a la fábrica 🏭")
+            else:
+                faltantes = requeridos - presentes
+                st.error(f"🚨 ALERTA: No cumple con los requisitos del PPE. Faltan: {', '.join(faltantes)}")
+
+    st.markdown("---")
+    st.markdown("**Autor: Alfredo Díaz**  \nUnab 2025! ©️")
 
