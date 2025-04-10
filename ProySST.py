@@ -91,7 +91,7 @@ uploaded_file = st.file_uploader("📷 Sube una imagen", type=["jpg", "jpeg", "p
 
 if uploaded_file is not None:
     image = Image.open(uploaded_file).convert("RGB")
-    st.image(image, caption="📷 Imagen Original", use_column_width=True)
+    st.image(image, caption="📷 Imagen Original", use_container_width=True)
 
     # Inferencia
     input_tensor = preprocess_image(image)
@@ -101,7 +101,7 @@ if uploaded_file is not None:
     # Dibujar resultados en la imagen
     image_with_boxes = image.copy()
     image_with_boxes = draw_detections(image_with_boxes, boxes, class_ids, scores)
-    st.image(image_with_boxes, caption="🟥 Imagen con Detecciones", use_column_width=True)
+    st.image(image_with_boxes, caption="🟥 Imagen con Detecciones", use_container_width=True)
 
     # Mostrar etiquetas detectadas
     st.markdown("### ✅ Objetos detectados:")
