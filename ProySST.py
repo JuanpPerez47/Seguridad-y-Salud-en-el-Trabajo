@@ -22,8 +22,14 @@ st.markdown(
 )
 
 # Barra lateral con controles
-st.sidebar.markdown("## Configuración")
-confianza = st.sidebar.slider("Nivel de confianza", 0, 100, 50)
+# Configuración de la barra lateral en la aplicación web
+with st.sidebar:
+    st.video("https://www.youtube.com/watch?v=xxUHCtHnVk8")  # Muestra un video en la barra lateral
+    st.title("Reconocimiento de imagen")  # Título en la barra lateral
+    st.subheader("Identificación de objetos con VGG16")  # Subtítulo en la barra lateral
+    
+    # Slider para seleccionar el nivel de confianza del modelo (0-100%)
+    confianza = st.slider("Seleccione el nivel de confianza", 0, 100, 50) / 100  # Se normaliza entre 0 y 1
 
 # Entradas de imagen en el cuerpo principal
 archivo = st.file_uploader("📁 Subir desde archivo", type=["jpg", "jpeg", "png"])
