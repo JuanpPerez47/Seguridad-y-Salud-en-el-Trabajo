@@ -82,13 +82,25 @@ def draw_detections(image, boxes, class_ids, scores):
 # Barra lateral
 with st.sidebar:
     st.video("https://www.youtube.com/watch?v=xxUHCtHnVk8")
-    st.title("Reconocimiento de Imagen")
+    st.title("Detección de Imagen")
     st.subheader("Detección con YOLOv8")
     confianza = st.slider("🔍 Nivel de confianza", 0, 100, 50) / 100
 
 # Imagen decorativa
 st.image("imagen12.jpg", use_container_width=True)
-st.title("🦺 Detección de Seguridad con YOLOv8 (ONNX)")
+# Imagen decorativa centrada
+st.markdown(
+    "<div style='text-align: center;'>"
+    "<img src='https://path-to-your-image.com/smartregionlab2.jpeg' width='400'/>"
+    "</div>",
+    unsafe_allow_html=True
+)
+
+# Título centrado
+st.markdown(
+    "<h1 style='text-align: center;'>🦺 Detección de Seguridad con YOLOv8 (ONNX)</h1>",
+    unsafe_allow_html=True
+)
 
 # Entrada de imagen
 entrada = (
