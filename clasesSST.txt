@@ -1,5 +1,0 @@
-boots
-gloves
-helmet
-human
-vest
