@@ -15,7 +15,7 @@ modelo_ppe = YOLO("best.pt")
 st.set_page_config(page_title="Sistema PPE Inteligente", layout="wide")
 
 # Encabezado principal
-st.image("imagen12.jpg", use_container_width=True)
+st.image("imagen12.jpg", width=600)
 st.markdown(
     "<h2 style='text-align: center; color: #003366;'>Sistema de Detección de Elementos de Protección Personal</h2>",
     unsafe_allow_html=True,
