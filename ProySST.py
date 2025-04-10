@@ -6,6 +6,7 @@ import tempfile
 import requests
 from io import BytesIO
 from ultralytics import YOLO
+from gtts import gTTS  # Importación para convertir texto a voz
 
 # Cargar modelos
 modelo_personas = YOLO("yolov8n.pt")
@@ -14,7 +15,7 @@ modelo_ppe = YOLO("best.pt")
 # Configuración de la página
 st.set_page_config(page_title="Sistema PPE Inteligente", layout="wide")
 
-# Encabezado principal
+# Encabezado principal con tamaño ajustado
 st.image("imagen12.jpg", width=1200)
 st.markdown(
     "<h2 style='text-align: center; color: #003366;'>Sistema de Detección de Elementos de Protección Personal</h2>",
@@ -22,16 +23,13 @@ st.markdown(
 )
 
 # Barra lateral con controles
-# Configuración de la barra lateral en la aplicación web
 with st.sidebar:
-    st.video("https://www.youtube.com/watch?v=xxUHCtHnVk8")  # Muestra un video en la barra lateral
-    st.title("Reconocimiento de imagen")  # Título en la barra lateral
-    st.subheader("Detección de objetos de seguridad en el trabajo con Yolov8")  # Subtítulo en la barra lateral
-    
-    # Slider para seleccionar el nivel de confianza del modelo (0-100%)
-    confianza = st.slider("Seleccione el nivel de confianza", 0, 100, 50) / 100  # Se normaliza entre 0 y 1
+    st.video("https://www.youtube.com/watch?v=xxUHCtHnVk8")
+    st.title("Reconocimiento de imagen")
+    st.subheader("Detección de objetos de seguridad en el trabajo con Yolov8")
+    confianza = st.slider("Seleccione el nivel de confianza", 0, 100, 50) / 100  # Normalizado 0 a 1
 
-# Entradas de imagen en el cuerpo principal
+# Entradas de imagen
 archivo = st.file_uploader("📁 Subir desde archivo", type=["jpg", "jpeg", "png"])
 captura = st.camera_input("📷 Capturar desde cámara")
 url = st.text_input("🌐 Ingresar URL de imagen")
@@ -63,12 +61,12 @@ if imagen_original:
     img_cv = np.array(imagen_original)
     img_cv = cv2.cvtColor(img_cv, cv2.COLOR_RGB2BGR)
 
-    resultados_personas = modelo_personas(img_cv, conf=confianza / 100)[0]
+    resultados_personas = modelo_personas(img_cv, conf=confianza)[0]
     personas_detectadas = [r for r in resultados_personas.boxes.data.cpu().numpy() if int(r[5]) == 0]
     st.success(f"👥 Personas detectadas: {len(personas_detectadas)}")
 
     for i, persona in enumerate(personas_detectadas, start=1):
-        x1, y1, x2, y2, conf, clase = map(int, persona[:6])
+        x1, y1, x2, y2, _, _ = map(int, persona[:6])
         persona_img = img_cv[y1:y2, x1:x2]
 
         with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as temp_file:
@@ -97,6 +95,20 @@ if imagen_original:
                 faltantes = requeridos - presentes
                 st.error(f"🚨 No cumple con el PPE. Faltan: {', '.join(faltantes)}")
 
+            # 🔊 Texto a voz con gTTS
+            texto_prediccion = f"La persona {i} tiene los siguientes elementos: {', '.join(etiquetas_detectadas)}. "
+            if requeridos.issubset(presentes):
+                texto_prediccion += "Cumple con los requisitos de protección."
+            else:
+                texto_prediccion += f"No cumple con el equipo requerido. Faltan: {', '.join(faltantes)}."
+
+            tts = gTTS(text=texto_prediccion, lang='es')
+            temp_audio = tempfile.NamedTemporaryFile(delete=True, suffix=".mp3")
+            tts.save(temp_audio.name)
+
+            st.audio(temp_audio.name, format="audio/mp3")
+
 # Pie de página
 st.markdown("---")
 st.markdown("<center><sub>📌 Autor: Juan Pablo Pérez Bayona - UNAB 2025 ©️</sub></center>", unsafe_allow_html=True)
+
