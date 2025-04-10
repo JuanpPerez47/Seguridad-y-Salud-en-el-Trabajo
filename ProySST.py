@@ -29,22 +29,9 @@ procesar = st.sidebar.button("📤 Procesar imagen")
 # Entradas en el cuerpo principal
 st.markdown("## Selecciona una imagen para analizar:")
 
-col1, col2, col3 = st.columns(3)
-
-# Subir imagen
-with col1:
-    st.markdown("### 📁 Subir desde archivo")
-    archivo = st.file_uploader("Selecciona una imagen", type=["jpg", "jpeg", "png"])
-
-# Cámara
-with col2:
-    st.markdown("### 📷 Capturar desde cámara")
-    captura = st.camera_input("")
-
-# URL
-with col3:
-    st.markdown("### 🌐 Desde URL")
-    url = st.text_input("Pega el enlace aquí")
+# Captura una imagen desde la cámara o permite la carga de un archivo
+img_file_buffer = st.camera_input("Capture una foto para identificar el objeto") or \
+                  st.file_uploader("Cargar imagen desde archivo", type=["jpg", "jpeg", "png"])
 
 # Procesar entrada
 imagen_original = None
