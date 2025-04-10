@@ -88,19 +88,9 @@ with st.sidebar:
 
 # Imagen decorativa
 st.image("imagen12.jpg", use_container_width=True)
-# Imagen decorativa centrada
-st.markdown(
-    "<div style='text-align: center;'>"
-    "<img src='https://path-to-your-image.com/smartregionlab2.jpeg' width='400'/>"
-    "</div>",
-    unsafe_allow_html=True
-)
 
 # Título centrado
-st.markdown(
-    "<h1 style='text-align: center;'>🦺 Detección de Seguridad con YOLOv8 (ONNX)</h1>",
-    unsafe_allow_html=True
-)
+st.markdown("<h1 style='text-align: center;'>🦺 Detección de Seguridad con YOLOv8 (ONNX)</h1>",unsafe_allow_html=True)
 
 # Entrada de imagen
 entrada = (
