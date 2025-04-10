@@ -5,9 +5,14 @@ from PIL import Image, ImageDraw, ImageFont
 import requests
 from io import BytesIO
 
-# Cargar clases desde archivo
-with open("clasesSST.txt", "r") as f:
-    CLASES = [line.strip() for line in f.readlines()]
+class_names = []
+try:
+    with open("claseIA.txt", "r", encoding="utf-8") as f:
+        class_names = [line.strip().lower() for line in f.readlines()]  # Lee y almacena los nombres de las clases en minúsculas
+    if not class_names:
+        st.error("El archivo claseIA.txt está vacío.")  # Muestra un error si el archivo está vacío
+except FileNotFoundError:
+    st.error("No se encontró el archivo claseIA.txt.")  # Muestra un error si el archivo no se encuentra
 
 # Cargar modelo ONNX
 onnx_model_path = "yolov8n.onnx"
