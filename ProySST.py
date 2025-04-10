@@ -78,6 +78,17 @@ def draw_detections(image, boxes, class_ids, scores):
     return image
 
 # Interfaz
+# Configuración de la barra lateral en la aplicación web
+with st.sidebar:
+    st.video("https://www.youtube.com/watch?v=xxUHCtHnVk8")  # Muestra un video en la barra lateral
+    st.title("Reconocimiento de imagen")  # Título en la barra lateral
+    st.subheader("Identificación de objetos con VGG16")  # Subtítulo en la barra lateral
+    
+    # Slider para seleccionar el nivel de confianza del modelo (0-100%)
+    confianza = st.slider("Seleccione el nivel de confianza", 0, 100, 50) / 100  # Se normaliza entre 0 y 1
+
+# Muestra una imagen en la interfaz principal de la aplicación
+st.image('smartregionlab2.jpeg')  # Imagen representativa del proyecto
 st.title("🦺 Detección de Seguridad con YOLOv8 (ONNX)")
 
 entrada = (
