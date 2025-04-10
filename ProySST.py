@@ -11,56 +11,54 @@ from ultralytics import YOLO
 modelo_personas = YOLO("yolov8n.pt")
 modelo_ppe = YOLO("best.pt")
 
-# Configurar página
+# Configuración de la página
 st.set_page_config(page_title="Sistema PPE Inteligente", layout="wide")
 
-# Encabezado reducido
-st.image("imagen12.jpg", use_container_width=True, output_format="auto", caption=None)
-st.markdown("<h2 style='text-align: center; color: #003366;'>Sistema de Detección de Elementos de Protección Personal</h2>", unsafe_allow_html=True)
+# Encabezado principal
+st.image("imagen12.jpg", use_container_width=True)
+st.markdown(
+    "<h2 style='text-align: center; color: #003366;'>Sistema de Detección de Elementos de Protección Personal</h2>",
+    unsafe_allow_html=True,
+)
 
-# Slider de confianza
-confianza = st.slider("Confianza del modelo", 0, 100, 50)
+# Barra lateral
+st.sidebar.markdown("## Opciones de Entrada")
 
-# Contenedor de entradas de imagen
-st.markdown("## Capture una foto para identificar el objeto")
+# Confianza del modelo
+confianza = st.sidebar.slider("Nivel de confianza", 0, 100, 50)
 
-# ========== ENTRADA POR CÁMARA ==========
+# Entrada: Subir imagen
+st.sidebar.markdown("### 1. Subir imagen desde archivo")
+archivo = st.sidebar.file_uploader("Selecciona una imagen", type=["jpg", "jpeg", "png"])
+
+# Entrada: Cámara
+st.sidebar.markdown("### 2. Capturar desde cámara")
+captura = st.sidebar.camera_input("")
+
+# Entrada: Enlace URL
+st.sidebar.markdown("### 3. Usar URL de imagen")
+url = st.sidebar.text_input("Pega el enlace aquí")
+
+# Procesar imagen
 imagen_original = None
-procesar = False
-col1, col2, col3 = st.columns([1, 1, 1])
+procesar = st.sidebar.button("📤 Procesar imagen")
 
-with col1:
-    st.markdown("**Desde la cámara**")
-    captura = st.camera_input("")
-
-with col2:
-    st.markdown("**Cargar imagen desde archivo**")
-    archivo = st.file_uploader("Arrastra o selecciona una imagen", type=["jpg", "jpeg", "png"])
-
-with col3:
-    st.markdown("**Ingresar URL de imagen**")
-    url = st.text_input("")
-
-# Botón para procesar
-if st.button("📤 Procesar imagen"):
-    if captura:
-        imagen_original = Image.open(captura)
-        procesar = True
-    elif archivo:
+if procesar:
+    if archivo:
         imagen_original = Image.open(archivo)
-        procesar = True
+    elif captura:
+        imagen_original = Image.open(captura)
     elif url:
         try:
             response = requests.get(url)
             imagen_original = Image.open(BytesIO(response.content))
-            procesar = True
         except:
-            st.error("❌ No se pudo cargar la imagen desde el enlace.")
+            st.sidebar.error("❌ No se pudo cargar la imagen desde el enlace.")
     else:
-        st.warning("Por favor, cargue una imagen usando una de las opciones anteriores.")
+        st.sidebar.warning("Por favor, selecciona una imagen primero.")
 
-# PROCESAMIENTO DE IMAGEN
-if procesar and imagen_original:
+# Procesamiento
+if imagen_original:
     st.subheader("📸 Imagen analizada")
     st.image(imagen_original, use_container_width=True)
 
