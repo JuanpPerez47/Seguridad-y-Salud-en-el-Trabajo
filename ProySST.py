@@ -10,7 +10,7 @@ from gtts import gTTS  # Importación para convertir texto a voz
 
 # Cargar modelos
 modelo_personas = YOLO("yolov8n.pt")
-modelo_ppe = YOLO("best.pt")
+modelo_ppe = YOLO("yolov8s.pt")
 
 # Configuración de la página
 st.set_page_config(page_title="Sistema PPE Inteligente", layout="wide")
