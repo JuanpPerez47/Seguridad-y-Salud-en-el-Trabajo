@@ -6,14 +6,14 @@ import tempfile
 import requests
 from io import BytesIO
 from ultralytics import YOLO
-from gtts import gTTS  # Importación para convertir texto a voz
+from gtts import gTTS
+
+# ESTA LÍNEA DEBE IR PRIMERO
+st.set_page_config(page_title="Sistema de Reconocimiento de Objetos", layout="wide")
 
 # Cargar modelos
-modelo_personas = YOLO("yolov8n.pt")
-modelo_ppe = YOLO("yolo11n.pt")
-
-# Configuración de la página
-st.set_page_config(page_title="Sistema PPE Inteligente", layout="wide")
+modelo_objetos = YOLO("best.pt")
+st.write("Clases del modelo:", modelo_objetos.names)
 
 # Encabezado principal con tamaño ajustado
 st.image("Vogue Editors.jpeg", width=1200)
