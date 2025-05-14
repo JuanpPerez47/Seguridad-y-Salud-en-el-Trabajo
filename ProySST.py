@@ -1,4 +1,9 @@
 import streamlit as st
+
+# ❗Esta debe ser la PRIMERA instrucción Streamlit
+st.set_page_config(page_title="Sistema de Reconocimiento de Objetos", layout="wide")
+
+# ✅ Luego importa lo demás
 from PIL import Image
 import cv2
 import numpy as np
@@ -8,11 +13,10 @@ from io import BytesIO
 from ultralytics import YOLO
 from gtts import gTTS
 
-# ✅ Configuración de la página (debe ser la primera instrucción de Streamlit)
-st.set_page_config(page_title="Sistema de Reconocimiento de Objetos", layout="wide")
+# Cargar modelos
+modelo_objetos = YOLO("best.pt")  # Reemplaza con tu modelo entrenado si no es el original de yolov8n
 
-# Cargar modelo
-modelo_objetos = YOLO("best.pt")  # Reemplaza con tu modelo personalizado si es necesario
+# Mostrar clases después de set_page_config
 st.write("Clases del modelo:", modelo_objetos.names)
 
 # Encabezado
